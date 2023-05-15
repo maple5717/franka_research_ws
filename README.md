@@ -72,6 +72,16 @@ source devel/setup.bash
 
 ## USAGE
 
+Robotiq gripper activation: 
+'''
+roslaunch robot_control robotiq_activate.launch 
+'''
+
+PID: 
+'''
+(to be updated)
+'''
+
 Run robot stuff:
 ```
 roslaunch robot_control robot_bringup.launch robot_ip:=172.16.0.2 gripper:=panda
