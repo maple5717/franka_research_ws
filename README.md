@@ -1,4 +1,4 @@
-# franka_research_ws
+# franka_research_ws (Robotiq)
 
 ## PREREQUISITS
 1. Install ROS Noetic
