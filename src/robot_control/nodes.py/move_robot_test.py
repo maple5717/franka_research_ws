@@ -25,15 +25,20 @@ from dougsm_helpers.ros_control import ControlSwitcher
 # from ggrasp.msg import Grasp
 
 HOME_POSE = [-0.010087330820306798, -0.7763083389326214, 0.0073893375214589855, -2.354554671363115, -0.013121012074334023, 1.570351987068393, 0.78471674188274]
-EE_FRAME = "panda_hand_tcp"
+# EE_FRAME = "panda_hand_tcp"
+EE_FRAME = "robotiq_eef"
+# EE_FRAME = "panda_link8"
+
+group_name = "panda_arm"
+# group_name = "panda_robotiq"
 
 class MoveRobot(object):
     """
     Generic Move Group Class to control the robot.
     """
 
-    def __init__(self):
-        self.gripper = rospy.get_param("~gripper", "panda")
+    def __init__(self, gripper):
+        self.gripper = rospy.get_param("~gripper", gripper)
 
         self.curr_velocity_publish_rate = 100.0  # Hz
         self.curr_velo_pub = rospy.Publisher(
@@ -51,7 +56,7 @@ class MoveRobot(object):
             }
         )
         self.cs.switch_controller("moveit")
-        self.pc = PandaCommander(group_name="panda_arm", gripper=self.gripper, ee=EE_FRAME)
+        self.pc = PandaCommander(group_name=group_name, gripper=self.gripper, ee=EE_FRAME)
         self.robot_state = None
         self.ROBOT_ERROR_DETECTED = False
         self.BAD_UPDATE = False
@@ -121,7 +126,7 @@ class MoveRobot(object):
         v.linear.z = -0.05
 
         rospy.sleep(1)
-
+        print(self.robot_state.O_T_EE)
         # Monitor robot state and descend
         while (
             self.robot_state.O_T_EE[-2] > 0.25
@@ -154,12 +159,43 @@ class MoveRobot(object):
         self.goto_home(velocity=0.1)
 
         return True
-        
+    
+    def robotiq_freq_check(self):
+        self.pc.gripper.set_gripper(0.1)
 
 
 if __name__ == "__main__":
     rospy.init_node("move_robot")
-    move_robot = MoveRobot()
+    move_robot = MoveRobot(gripper="robotiq")
+
     if move_robot.test():
         print('Successfully executed all actions!')
         print('Done.')
+    # --------record frequency---------
+    # print("start testing")
+    # import numpy as np
+    # num = 100
+
+    # for _ in range(10):
+    #     time_arr = np.zeros(num)
+    #     for i in range(num):
+    #         time1 = rospy.get_time()
+    #         ret = move_robot.pc.gripper.read_state()
+    #         time2 = rospy.get_time()
+
+    #         time_arr[i] = time2 - time1
+    #         # if ret:
+    #         #     time_arr[i] = time2 - time1
+    #         # else:
+    #         #     time_arr[i] = 1
+
+    #     print(f"average frequency: {np.mean(1/time_arr)} average time: {np.mean(time_arr)}  standard deviation: {np.std(time_arr)}")
+    #     print(ret)
+
+
+
+
+
+    # if move_robot.test():
+    #     print('Successfully executed all actions!')
+    #     print('Done.')

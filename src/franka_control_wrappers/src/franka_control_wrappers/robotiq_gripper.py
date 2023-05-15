@@ -54,3 +54,10 @@ class RobotiqGripper(BaseGripper):
             return True
         else:
             return self.set_gripper(-0.01)
+
+    # def read_state(self):
+    #     """
+    #     read the state
+    #     """
+    #     client = actionlib.SimpleActionClient('robotiq', control_msgs.msg.GripperCommandAction)
+    #     return client.get_state()
