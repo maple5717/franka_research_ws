@@ -14,6 +14,4 @@
 [submodule "src/tacniq_ros"]
 	path = src/tacniq_ros
 	url = https://github.com/clear-nus/tacniq_ros.git
-[submodule "src/pid"]
-	path = src/pid
-	url = https://github.com/tasbolat1/pid.git
+
