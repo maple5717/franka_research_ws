@@ -1,0 +1,74 @@
+<?xml version="1.0" ?>
+<!DOCTYPE launch>
+<launch>
+  <arg name="robot_ip" default="172.16.0.2" />
+  <arg name="gripper" default="robotiq" />
+  <arg name="comport" default="/dev/ttyUSB0" />
+
+  <!-- Set some project specific defaults for the panda arm. -->
+  <rosparam if="$(eval arg('gripper') == 'panda')" command="load" file="$(find robot_control)/cfg/panda_setup.yaml" ns="/panda_setup"/>
+  <rosparam if="$(eval arg('gripper') == 'robotiq')" command="load" file="$(find robot_control)/cfg/panda_setup_robotiq.yaml" ns="/panda_setup"/>
+  <node name="set_robot_defaults" pkg="franka_control_wrappers" type="set_panda_defaults.py"  respawn="false" output="screen">
+    <param name="gripper" type="str" value="$(arg gripper)"/>
+  </node>
+
+  <!-- set up robotic gripper -->
+  <group if="$(eval arg('gripper') == 'robotiq')">
+    <arg name="gripper_name" default="robotiq" />
+    <arg name="min_gap" default="-0.017" />
+    <arg name="max_gap" default="0.135" />
+    <arg name="min_effort" default="30.0" />
+    <arg name="max_effort" default="100.0" />
+
+    <!-- robotiq configuration -->
+    <node name="robotiq_2f_gripper_rtu" pkg="robotiq_2f_gripper_control" type="Robotiq2FGripperRtuNode.py" args="$(arg comport)">
+      <!-- The action server for Robotiq requires input/output to be at /input and /output -->
+      <remap from="Robotiq2FGripperRobotInput" to="input"/>
+      <remap from="Robotiq2FGripperRobotOutput" to="output"/>
+    </node>
+
+    <!-- publish the joint states of robotiq gripper -->
+    <node name="robotiq_joint_state_publisher" pkg="robot_control" type="read_robotiq_joint_state.py" />
+
+
+    <node name="robotiq_2f_gripper_action_server" pkg="robotiq_2f_gripper_action_server"
+          type="robotiq_2f_gripper_action_server_node">
+      <param name="gripper_name" type="str" value="$(arg gripper_name)" />
+      <param name="min_gap" type="double" value="$(arg min_gap)" />
+      <param name="max_gap" type="double" value="$(arg max_gap)" />
+      <param name="min_effort" type="double" value="$(arg min_effort)" />
+      <param name="max_effort" type="double" value="$(arg max_effort)" />
+
+      <!-- <remap from="input" to="$(arg gripper_name)/input" />
+      <remap from="output" to="$(arg gripper_name)/output" /> -->
+    </node>
+
+    <!-- start nodes to help visualize the gripper later in RViz -->
+    <group ns="$(arg gripper_name)">
+      <param name="robot_description" command="$(find xacro)/xacro --inorder $(find franka_robotiq_description)/robots/panda_robotiq.urdf.xacro" />
+      <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher">
+        <param name="publish_frequency" type="double" value="100.0"/>
+      </node>
+      <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
+        <rosparam param="source_list">[/robotiq_state]</rosparam>
+        <rosparam param="use_gui">false</rosparam>
+      </node>
+    </group>
+  </group>
+
+  <group if="$(eval arg('gripper') == 'panda')">
+    <group ns="$(arg gripper_name)">
+      <param name="robot_description" command="$(find xacro)/xacro --inorder $(find franka_description)/robots/panda.urdf.xacro" />
+      <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher">
+        <param name="publish_frequency" type="double" value="100.0"/>
+      </node>
+      <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
+        <rosparam param="source_list">[/joint_states]</rosparam>
+        <rosparam param="use_gui">false</rosparam>
+      </node>
+    </group>
+  </group>
+
+
+
+</launch>

@@ -38,7 +38,7 @@ class PID_HELPER():
 
         self.input_topic = rospy.get_param("~input", "input")
         self.output_topic = rospy.get_param("~output", "output")
-        self.GOAL = rospy.get_param("~goal", 0.024)
+        self.GOAL = rospy.get_param("~goal", 0.024*3)
         self.state=0
         self.current_pos=0
         rospy.init_node('pid_helper')
@@ -113,7 +113,7 @@ class PID_HELPER():
         action = min(210, action)
         self.command.rPR = action
         print('Pos + Action: ', self.current_pos, int(data.data*200), data.data)
-        # print('control effort: ', )
+        print('control effort: ', action)
         # print(self.current_pos, data.data, self.command.rPR)
         self.pub_plant.publish(self.command)
 

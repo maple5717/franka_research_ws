@@ -5,8 +5,27 @@
 2. Python3.7 or above
 3. RT kernel based Linux 20.04
 
+## Setting up USB
+```
+sudo chmod a+rw /dev/ttyUSB0
+
+```
+
+## Setting the latency
+'''
+setserial -a /dev/ttyUSB0 low_latency
+'''
+then check whether the latency is 1
+'''
+sudo cat /sys/bus/usb-serial/devices/ttyUSB0/latency_timer 
+'''
+
+
 ## INSTALLATION
 Clone the following repo:
+
+
+
 
 ```
 git clone --recurse-submodules https://github.com/tasbolat1/franka_research_ws.git

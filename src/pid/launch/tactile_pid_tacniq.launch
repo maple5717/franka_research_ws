@@ -5,12 +5,12 @@
     <arg name="max_gap" default="0.135" />
     <arg name="min_effort" default="30.0" />
     <arg name="max_effort" default="100.0" />
-    <param name="goal" value="0.02"></param>
-
+    <param name="goal" value="0.02"></param> <!-- 0.02 -->
+<!-- 5.5 0.15 -->
     <node name="tactile_pid" pkg="pid" type="controller" output="screen" >
-      <param name="Kp" value="5.5" /> <!-- 0.02 stopped to work -->
-      <param name="Ki" value="0.0" />  <!-- 0.025: 3.0 0.0 0.8 --> <!-- 0.025: 2.25 0.0 0.12 --><!-- 0.025: 3.5or5.5 0.0 0.15 -->
-      <param name="Kd" value="0.15" /> <!-- 230: 0.02, 0.02, 0.001 -->
+      <param name="Kp" value="2.5" /> <!-- 0.02 stopped to work -->
+      <param name="Ki" value="0.2" />  <!-- 0.025: 3.0 0.0 0.8 --> <!-- 0.025: 2.25 0.0 0.12 --><!-- 0.025: 3.5or5.5 0.0 0.15 -->
+      <param name="Kd" value="0" /> <!-- 230: 0.02, 0.02, 0.001 -->
       <param name="upper_limit" value="0.9" />
       <param name="lower_limit" value="-15" />
       <param name="windup_limit" value="25" />
@@ -18,6 +18,8 @@
       <param name="max_loop_frequency" value="105.0" />
       <param name="min_loop_frequency" value="95.0" />
       <param name="setpoint_timeout" value="-1.0" />
+      <param name="min_loop_frequency" value="100"/>
+      <param name="max_loop_frequency" value="50"/>
      </node>
 
          <!-- robotiq configuration -->
@@ -28,20 +30,9 @@
     </node>
 
     <!-- publish the joint states of robotiq gripper -->
-    <node name="robotiq_joint_state_publisher" pkg="robot_control" type="read_robotiq_joint_state.py" />
+    <!-- <node name="robotiq_joint_state_publisher" pkg="robot_control" type="read_robotiq_joint_state.py" /> -->
 
 
-    <node name="robotiq_2f_gripper_action_server" pkg="robotiq_2f_gripper_action_server"
-          type="robotiq_2f_gripper_action_server_node">
-      <param name="gripper_name" type="str" value="$(arg gripper_name)" />
-      <param name="min_gap" type="double" value="$(arg min_gap)" />
-      <param name="max_gap" type="double" value="$(arg max_gap)" />
-      <param name="min_effort" type="double" value="$(arg min_effort)" />
-      <param name="max_effort" type="double" value="$(arg max_effort)" />
-
-      <!-- <remap from="input" to="$(arg gripper_name)/input" />
-      <remap from="output" to="$(arg gripper_name)/output" /> -->
-    </node>
 
 
     <node name="pid_helper_tacniq" pkg="pid" type="pid_helper_tacniq.py" output="screen" ></node>

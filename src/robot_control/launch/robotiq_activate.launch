@@ -1,8 +1,8 @@
 <launch>
 
   <arg name="device" default="/dev/ttyUSB0" />
-  <node name="RtuNode" pkg="robotiq_2f_gripper_control" type="Robotiq2FGripperRtuNode.py" args="$(arg device)" />
+  <node name="RtuNode" pkg="robotiq_2f_gripper_control" type="Robotiq2FGripperRtuNode.py" output="screen" args="$(arg device)" />
 
-  <node name="SimpleController" pkg="robotiq_2f_gripper_control" type="Robotiq2FGripperSimpleController.py" />
+  <node name="SimpleController" pkg="robotiq_2f_gripper_control" type="Robotiq2FGripperSimpleController.py" output="screen" />
 
 </launch>
