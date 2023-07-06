@@ -4,6 +4,10 @@ from std_msgs.msg import Float64, Bool, String, Int16MultiArray, MultiArrayDimen
 from robotiq_2f_gripper_control.msg import _Robotiq2FGripper_robot_output as outputMsg
 from robotiq_2f_gripper_control.msg import _Robotiq2FGripper_robot_input  as inputMsg
 import numpy as np
+import threading
+import ctypes
+import inspect
+from multiprocessing import Process, Event
 
 max_adc_value = 3500  # max adc value depends on FPGA
 tac_map_height = 11
@@ -17,9 +21,6 @@ right_updated = False
 both_updated = False
 # reset and activate
 
-
-
-
 def read_tacniq_data(msg):
     data_flattened = np.array(msg.data)
     height = msg.layout.dim[0].size
@@ -27,11 +28,29 @@ def read_tacniq_data(msg):
     data = data_flattened.reshape([height, width])
     return data
 
+def thread_job():
+    print("start spinning")
+    rospy.spin()
 
-
+def async_raise(tid, exctype):
+   """raises the exception, performs cleanup if needed"""
+   tid = ctypes.c_long(tid)
+   if not inspect.isclass(exctype):
+      exctype = type(exctype)
+   res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(exctype))
+   if res == 0:
+      raise ValueError("invalid thread id")
+   elif res != 1:
+      # """if it returns a number greater than one, you're in trouble,  
+      # and you should call it again with exc=NULL to revert the effect"""  
+      ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, None)
+      raise SystemError("PyThreadState_SetAsyncExc failed")
+      
+def stop_thread(thread):
+   async_raise(thread.ident, SystemExit)
 
 class PID_HELPER():
-    def __init__(self):
+    def __init__(self, goal=0.024*3*0 + 0.075):
         #+0.035 # 80 - 60 # in terms of desired pressure 230, 80
         self.TOLERANCE = 10
         self.TOLERANCE_QTY = 10
@@ -39,10 +58,11 @@ class PID_HELPER():
 
         self.input_topic = rospy.get_param("~input", "input")
         self.output_topic = rospy.get_param("~output", "output")
-        self.GOAL = rospy.get_param("~goal", 0.024*3*0 + 0.1)
+        self.GOAL = rospy.get_param("~goal", goal)
         self.state=0
         self.current_pos=0
-        rospy.init_node('pid_helper')
+        self.error = 1
+        # rospy.init_node('pid_helper')
         self.pub = rospy.Publisher('state', Float64, queue_size=100)
         self.pub_goal = rospy.Publisher('setpoint', Float64, queue_size=100)
         self.pub_plant = rospy.Publisher(self.output_topic, outputMsg.Robotiq2FGripper_robot_output, queue_size=100)
@@ -67,13 +87,11 @@ class PID_HELPER():
     #    if data.data == 'start':
     #        self.pub_pid_start.publish(Bool(data=1))
 
-
     def getStatus(self, status):
         self.current_pos = status.gPO
         # self.updatePlant()
         #if self.current_pos >= self.GOAL:
         #    self.current_pos = self.GOAL
-
 
     def init_gripper(self):
         self.command.rACT = 0
@@ -81,7 +99,7 @@ class PID_HELPER():
         rospy.sleep(0.2)
         self.command.rACT = 1
         self.command.rGTO = 1
-        self.command.rSP = 255
+        # self.command.rSP = 255
         # self.command.rFR = 150
 
         self.pub_plant.publish(self.command)
@@ -111,15 +129,16 @@ class PID_HELPER():
     def updatePlant(self,data):
         '''receive and send output of the pid controller to gripper'''
         action = self.current_pos + int(data.data*self.TACNIQ_SCALE) 
-        print('Input to the plant:', data.data)
-        print('State: ', self.state)
-        print('Error: ', self.GOAL - self.state)
+        # print('Input to the plant:', data.data)
+        # print('State: ', self.state)
+        # print('Error: ', self.GOAL - self.state)
+        self.error = self.GOAL - self.state
         action = max(0, action)
         action = min(210, action)
         self.command.rPR = action
-        print('Pos + Action: ', self.current_pos, int(data.data*self.TACNIQ_SCALE), data.data)
-        print('control effort: ', action)
-        # print(self.current_pos, data.data, self.command.rPR)
+        # print('Pos + Action: ', self.current_pos, int(data.data*self.TACNIQ_SCALE), data.data)
+        # print('control effort: ', action)
+        # # print(self.current_pos, data.data, self.command.rPR)
         self.pub_plant.publish(self.command)
 
     def read_left_tacniq(self, msg):
@@ -150,13 +169,44 @@ class PID_HELPER():
             self.pub_pid_start.publish(Bool(data=1))
 
     def listener(self): 
+        # while self.command.rPR < 210:
         rospy.Subscriber('tacniq/left', Int16MultiArray, self.read_left_tacniq)
         rospy.Subscriber('tacniq/right', Int16MultiArray, self.read_right_tacniq)
-        # rospy.Subscriber('control_effort', Float64, self.updatePlant)
         rospy.Subscriber('control_effort', Float64, self.updatePlant)
-        rospy.spin()
+
+        self.spin_thread = Process(target=thread_job) # threading.Thread(target=thread_job, daemon=True)
+        self.spin_thread.start()
+
+        last_command = self.command.rPR
+        hold_flag = 0
+        stop_flag = 0
+        while not(stop_flag):
+            if last_command == self.command.rPR and self.error < 0.05: 
+                if hold_flag:
+                    stop_flag = 1
+                    self.pub_pid_start.publish(Bool(data=0))
+                    
+                    self.spin_thread.terminate()
+                    self.spin_thread.join()
+                    # stop_thread(self.spin_thread)
+                    # print(self.spin_thread.is_alive)
+                else:
+                    hold_flag = 1
+            else:
+                hold_flag = 0
+
+            last_command = self.command.rPR
+            # print("hold", hold_flag)
+            # print("stop", stop_flag)
+            # print('Pos + Action: ', self.current_pos)
+            # print('control effort: ', self.command.rPR)
+            rospy.sleep(0.05)
+            
+
 
 if __name__ == '__main__':
+    rospy.init_node('pid_helper')
     my_helper = PID_HELPER()
     rospy.sleep(0.1)
     my_helper.listener()
+    print("finished")

@@ -36,14 +36,14 @@ def send_robotiq_joint_state(data):
     pub.publish(joint_state)
 
 
-# rospy.init_node('robotiq_state_publisher')
-# rate = rospy.Rate(50)
-# pub = rospy.Publisher('/robotiq_state', JointState, queue_size=10)
-# # pub = rospy.Publisher('/robotiq_state', Robotiq2FGripper_robot_input, queue_size=10)
-# rospy.Subscriber("/input", Robotiq2FGripper_robot_input, send_robotiq_joint_state)
+rospy.init_node('robotiq_state_publisher')
+rate = rospy.Rate(50)
+pub = rospy.Publisher('/robotiq_state', JointState, queue_size=10)
+# pub = rospy.Publisher('/robotiq_state', Robotiq2FGripper_robot_input, queue_size=10)
+rospy.Subscriber("/input", Robotiq2FGripper_robot_input, send_robotiq_joint_state)
 
-# rospy.spin()
-
+rospy.spin()
+'''
 device = "/dev/ttyUSB0"
 
 gripper = (
@@ -76,6 +76,7 @@ while True:
     # print(status)
     # time.sleep(0.2)
     print("frequency: ", 1/(time2 - time1))
+'''
 
 
 
