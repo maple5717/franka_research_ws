@@ -34,11 +34,13 @@ EE_FRAME = "robotiq_eef"
 group_name = "panda_arm"
 # group_name = "panda_robotiq"
 pos_all = [
-    [0.52, -0.20, 0.13, 1.0, 0.0, 0.0, 0.0], 
-    [0.52, -0.00, 0.13, 1.0, 0.0, 0.0, 0.0], 
+    [0.52, -0.20, 0.13-0.02, 1.0, 0.0, 0.0, 0.0], 
+    [0.52, -0.00, 0.13-0.02, 1.0, 0.0, 0.0, 0.0], 
+    # [0.52, 0.20, 0.13-0.02, 1.0, 0.0, 0.0, 0.0], 
 ]
 
-set_point_list = [0.06, 0.06]
+set_point_list = [3.8+0.5-0.6, 0.5, 1.2]
+set_point_list = [3.8-1.5, 0.5, 1.2]
 
 class MoveRobot(object):
     """
@@ -68,6 +70,8 @@ class MoveRobot(object):
         self.robot_state = None
         self.ROBOT_ERROR_DETECTED = False
         self.BAD_UPDATE = False
+        self.my_helper = None
+
         rospy.Subscriber(
             "/franka_state_controller/franka_states",
             FrankaState,
@@ -107,11 +111,14 @@ class MoveRobot(object):
         return self.pc.goto_joints(HOME_POSE, velocity=velocity)
     
     def grasp(self, setpoint):
-        my_helper = PID_HELPER()
+        if not self.my_helper:
+            self.my_helper = PID_HELPER()
+        
+        self.my_helper.GOAL = setpoint
         rospy.sleep(0.1)
-        my_helper.listener()
+        self.my_helper.listener()
         print("finished grasping")
-        del my_helper
+        # del my_helper
         
 
     def test(self):
@@ -122,7 +129,7 @@ class MoveRobot(object):
 
         # go home pose
         print('Going home')
-        self.goto_home(velocity=0.1)
+        self.goto_home(velocity=0.3)
 
         
 
@@ -154,10 +161,10 @@ class MoveRobot(object):
             print('successfully grasped ')
 
             print('go up')
-            self.pc.goto_pose(object_pos_up, velocity=0.1)
+            self.pc.goto_pose(object_pos_up, velocity=0.2)
 
             print('move to the target position')
-            self.pc.goto_pose(target_pos_up, velocity=0.1)
+            self.pc.goto_pose(target_pos_up, velocity=0.2)
             rospy.sleep(0.1)
 
             print('go down')
@@ -169,12 +176,13 @@ class MoveRobot(object):
             self.pc.gripper.set_gripper(0.1)
 
             print('go up')
-            self.pc.goto_pose(target_pos_up, velocity=0.1)
+            self.pc.goto_pose(target_pos_up, velocity=0.2)
 
-
+        self.my_helper.spin_thread.terminate()
+        self.my_helper.spin_thread.join()
         # go home 
         print('Going home pose')
-        self.goto_home(velocity=0.1)
+        self.goto_home(velocity=0.2)
 
         return True
     
@@ -192,6 +200,7 @@ if __name__ == "__main__":
     if move_robot.test():
         print('Successfully executed all actions!')
         print('Done.')
+        raise Exception("end")
     # --------record frequency---------
     # print("start testing")
     # import numpy as np

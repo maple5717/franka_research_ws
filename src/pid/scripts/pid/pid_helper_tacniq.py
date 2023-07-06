@@ -54,7 +54,8 @@ class PID_HELPER():
         #+0.035 # 80 - 60 # in terms of desired pressure 230, 80
         self.TOLERANCE = 10
         self.TOLERANCE_QTY = 10
-        self.TACNIQ_SCALE = 20
+        self.TACNIQ_SCALE = 1000
+        self.ROBOTIQ_SCALE = 4
 
         self.input_topic = rospy.get_param("~input", "input")
         self.output_topic = rospy.get_param("~output", "output")
@@ -62,6 +63,8 @@ class PID_HELPER():
         self.state=0
         self.current_pos=0
         self.error = 1
+        self.pid_enable = False
+        
         # rospy.init_node('pid_helper')
         self.pub = rospy.Publisher('state', Float64, queue_size=100)
         self.pub_goal = rospy.Publisher('setpoint', Float64, queue_size=100)
@@ -79,6 +82,7 @@ class PID_HELPER():
         self.command.rFR = 0 # Desired force: keep 0
         
         self.init_gripper()
+        self.pid_enable = False
         self.pub_pid_start.publish(Bool(data=0))
         # start with msg
         #rospy.Subscriber('talkPID', String, self.callbackPID)
@@ -110,8 +114,8 @@ class PID_HELPER():
         rospy.sleep(1.5)
 
         # send goal stuff
-        self.pub_goal.publish(Float64(data=self.GOAL))
-        print('Goal set')
+        # self.pub_goal.publish(Float64(data=self.GOAL))
+        # print('Goal set')
 
 
     # def updateState(self,data):
@@ -128,11 +132,16 @@ class PID_HELPER():
 
     def updatePlant(self,data):
         '''receive and send output of the pid controller to gripper'''
-        action = self.current_pos + int(data.data*self.TACNIQ_SCALE) 
+        # if not(self.pid_enable):
+        #     print(00000)
+        #     return 
+        
+        action = self.current_pos + int(data.data*self.ROBOTIQ_SCALE) 
         # print('Input to the plant:', data.data)
         # print('State: ', self.state)
         # print('Error: ', self.GOAL - self.state)
         self.error = self.GOAL - self.state
+        print("goal, state: ", self.GOAL, self.state)
         action = max(0, action)
         action = min(210, action)
         self.command.rPR = action
@@ -161,15 +170,22 @@ class PID_HELPER():
         if left_updated and right_updated:
             # combine left_data and right_data here and publish the result
             average_val = np.mean(left_image) + np.mean(right_image)
-            average_force = 1 - average_val/ 2 / max_adc_value
-            self.pub.publish(10*average_force) # publish the combined data 
-            self.state = 10*average_force # this is a temporary value (5 * average_force - 0*0.020768)
+            average_force = 1 - average_val/ 2 / max_adc_value - 0.00426
+            self.pub.publish(self.TACNIQ_SCALE * average_force) # publish the combined data 
+            self.state = self.TACNIQ_SCALE * average_force # this is a temporary value (5 * average_force - 0*0.020768)
             left_updated = False  # reset the flag
             right_updated = False
-            self.pub_pid_start.publish(Bool(data=1))
+            # print(average_val, average_force)
+            
+            if self.pid_enable:
+                self.pub_pid_start.publish(Bool(data=1))
 
     def listener(self): 
         # while self.command.rPR < 210:
+        self.pub_goal.publish(Float64(data=self.GOAL))
+        print('Goal set')
+
+        self.pid_enable = True
         rospy.Subscriber('tacniq/left', Int16MultiArray, self.read_left_tacniq)
         rospy.Subscriber('tacniq/right', Int16MultiArray, self.read_right_tacniq)
         rospy.Subscriber('control_effort', Float64, self.updatePlant)
@@ -181,13 +197,14 @@ class PID_HELPER():
         hold_flag = 0
         stop_flag = 0
         while not(stop_flag):
-            if last_command == self.command.rPR and self.error < 0.05: 
+            if last_command == self.command.rPR: #and self.error < 0.005: 
                 if hold_flag:
                     stop_flag = 1
+                    self.pid_enable = False
                     self.pub_pid_start.publish(Bool(data=0))
-                    
-                    self.spin_thread.terminate()
-                    self.spin_thread.join()
+
+                    # self.spin_thread.terminate()
+                    # self.spin_thread.join()
                     # stop_thread(self.spin_thread)
                     # print(self.spin_thread.is_alive)
                 else:
@@ -200,7 +217,7 @@ class PID_HELPER():
             # print("stop", stop_flag)
             # print('Pos + Action: ', self.current_pos)
             # print('control effort: ', self.command.rPR)
-            rospy.sleep(0.05)
+            rospy.sleep(0.1)
             
 
 

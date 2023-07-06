@@ -8,11 +8,11 @@
   
 
 
-
+<!-- P, D: 0.75, 2.15 -->
   <node name="tactile_pid" pkg="pid" type="controller" output="screen" >
-    <param name="Kp" value="5.00" /> <!-- 0.02 stopped to work -->
+    <param name="Kp" value="0.75" /> <!-- 0.02 stopped to work -->
     <param name="Ki" value="0" />  <!-- 0.025: 3.0 0.0 0.8 --> <!-- 0.025: 2.25 0.0 0.12 --><!-- 0.025: 3.5or5.5 0.0 0.15 -->
-    <param name="Kd" value="0.95" /> <!-- 230: 0.02, 0.02, 0.001 -->
+    <param name="Kd" value="0.15" /> <!-- 230: 0.02, 0.02, 0.001 -->
     <param name="upper_limit" value="0.9" />
     <param name="lower_limit" value="-15" />
     <param name="windup_limit" value="25" />
