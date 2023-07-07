@@ -8,6 +8,7 @@ import threading
 import ctypes
 import inspect
 from multiprocessing import Process, Event
+# from math import abs
 
 max_adc_value = 3500  # max adc value depends on FPGA
 tac_map_height = 11
@@ -141,7 +142,7 @@ class PID_HELPER():
         # print('State: ', self.state)
         # print('Error: ', self.GOAL - self.state)
         self.error = self.GOAL - self.state
-        print("goal, state: ", self.GOAL, self.state)
+        # print("goal, state: ", self.GOAL, self.state, self.error)
         action = max(0, action)
         action = min(210, action)
         self.command.rPR = action
@@ -196,8 +197,10 @@ class PID_HELPER():
         last_command = self.command.rPR
         hold_flag = 0
         stop_flag = 0
+
+        # stop grasping when error < 0.05 or is always zero
         while not(stop_flag):
-            if last_command == self.command.rPR: #and self.error < 0.005: 
+            if abs(self.error) < 0.05 or (last_command == self.command.rPR): # last_command == self.command.rPR: #and self.error < 0.005: 
                 if hold_flag:
                     stop_flag = 1
                     self.pid_enable = False
@@ -217,7 +220,7 @@ class PID_HELPER():
             # print("stop", stop_flag)
             # print('Pos + Action: ', self.current_pos)
             # print('control effort: ', self.command.rPR)
-            rospy.sleep(0.1)
+            rospy.sleep(0.05)
             
 
 

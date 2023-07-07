@@ -36,12 +36,12 @@ group_name = "panda_arm"
 pos_all = [
     [0.52, -0.20, 0.13-0.02, 1.0, 0.0, 0.0, 0.0], 
     [0.52, -0.00, 0.13-0.02, 1.0, 0.0, 0.0, 0.0], 
-    # [0.52, 0.20, 0.13-0.02, 1.0, 0.0, 0.0, 0.0], 
+    [0.52, 0.20, 0.13-0.02, 1.0, 0.0, 0.0, 0.0], 
 ]
 
 set_point_list = [3.8+0.5-0.6, 0.5, 1.2]
 set_point_list = [3.8-1.5, 0.5, 1.2]
-
+set_point_list = [2.3-0.8, 0.5+0.2, 1.1]
 class MoveRobot(object):
     """
     Generic Move Group Class to control the robot.
@@ -147,12 +147,12 @@ class MoveRobot(object):
             pose = object_pos.copy()
             pose[2] += 0.1 # + 0.1m at z
 
-            self.pc.goto_pose(object_pos_up, velocity=0.2)
+            self.pc.goto_pose(object_pos_up, velocity=0.3)
             rospy.sleep(0.1)
 
             # go down
             print('go down')
-            self.pc.goto_pose(object_pos, velocity=0.15)
+            self.pc.goto_pose(object_pos, velocity=0.25)
 
             # close the fingers.
             print('Closing fingers')
@@ -161,14 +161,14 @@ class MoveRobot(object):
             print('successfully grasped ')
 
             print('go up')
-            self.pc.goto_pose(object_pos_up, velocity=0.2)
+            self.pc.goto_pose(object_pos_up, velocity=0.3)
 
             print('move to the target position')
-            self.pc.goto_pose(target_pos_up, velocity=0.2)
+            self.pc.goto_pose(target_pos_up, velocity=0.3)
             rospy.sleep(0.1)
 
             print('go down')
-            self.pc.goto_pose(target_pos, velocity=0.15)
+            self.pc.goto_pose(target_pos, velocity=0.25)
 
             # open
             print('Opening fingers')
@@ -176,7 +176,7 @@ class MoveRobot(object):
             self.pc.gripper.set_gripper(0.1)
 
             print('go up')
-            self.pc.goto_pose(target_pos_up, velocity=0.2)
+            self.pc.goto_pose(target_pos_up, velocity=0.3)
 
         self.my_helper.spin_thread.terminate()
         self.my_helper.spin_thread.join()
@@ -200,7 +200,9 @@ if __name__ == "__main__":
     if move_robot.test():
         print('Successfully executed all actions!')
         print('Done.')
-        raise Exception("end")
+        rospy.signal_shutdown('Shutting down the node')
+        import sys; sys.exit()
+        # raise Exception("end")
     # --------record frequency---------
     # print("start testing")
     # import numpy as np
