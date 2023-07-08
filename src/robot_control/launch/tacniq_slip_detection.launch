@@ -1,0 +1,12 @@
+<?xml version="1.0" ?>
+<!DOCTYPE launch>
+<launch>
+
+  <include file="$(find robot_control)/launch/robotiq_activate.launch"></include>
+    <node name="tacniq" pkg="tacniq_ros" type="tacniq.py" output="screen" ></node>
+    <node name="create_tacniq_queue" pkg="robot_control" type="create_tacniq_queue.py" output="screen" ></node>
+    
+    <!-- <node name="tacniq_visualize" pkg="tacniq_ros" type="visualize.py" output="screen" ></node> -->
+    <node name="tacniq_visualize" pkg="robot_control" type="tacniq_entropy_visualize.py" output="screen" ></node>
+
+</launch>
