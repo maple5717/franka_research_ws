@@ -1,0 +1,78 @@
+<launch>
+    <arg name="comport" default="/dev/ttyUSB0" />
+    <arg name="gripper_name" default="robotiq" />
+    <arg name="min_gap" default="-0.017" />
+    <arg name="max_gap" default="0.135" />
+    <arg name="min_effort" default="30.0" />
+    <arg name="max_effort" default="100.0" />
+    <param name="goal" value="0.02"></param> <!-- 0.02 -->
+<!-- 5.5 0.15 -->
+<!-- CURRENT PROBLEM is not the PID params, but the "too discrete" control effort !!!!!!!!!! -->
+    <node name="initial_contact_pid" pkg="pid" type="controller" output="screen" >
+      <param name="Kp" value="6.00" /> <!-- 0.02 stopped to work -->
+      <param name="Ki" value="0" />  <!-- 0.025: 3.0 0.0 0.8 --> <!-- 0.025: 2.25 0.0 0.12 --><!-- 0.025: 3.5or5.5 0.0 0.15 -->
+      <param name="Kd" value="0.95" /> <!-- 230: 0.02, 0.02, 0.001 -->
+      <param name="upper_limit" value="0.9" />
+      <param name="lower_limit" value="-15" />
+      <param name="windup_limit" value="25" />
+      <param name="cutoff_frequency" value="10" /> <!-- 20 -->
+      <param name="max_loop_frequency" value="105.0" />
+      <param name="min_loop_frequency" value="95.0" />
+      <param name="setpoint_timeout" value="-1.0" />
+      <param name="goal" value="0.2"/>
+    </node>
+
+    <node name="slip_control_pid" pkg="pid" type="controller" output="screen" >
+      <param name="Kp" value="1.00" /> <!-- 0.02 stopped to work -->
+      <param name="Ki" value="0" />  <!-- 0.025: 3.0 0.0 0.8 --> <!-- 0.025: 2.25 0.0 0.12 --><!-- 0.025: 3.5or5.5 0.0 0.15 -->
+      <param name="Kd" value="0.00" /> <!-- 230: 0.02, 0.02, 0.001 -->
+      <param name="upper_limit" value="0.9" />
+      <param name="lower_limit" value="-15" />
+      <param name="windup_limit" value="25" />
+      <param name="cutoff_frequency" value="10" /> <!-- 20 -->
+      <param name="max_loop_frequency" value="105.0" />
+      <param name="min_loop_frequency" value="95.0" />
+      <param name="setpoint_timeout" value="-1.0" />
+      <param name="goal" value="0.2"/>
+    </node>
+
+
+         <!-- robotiq configuration -->
+    <node name="robotiq_2f_gripper_rtu" pkg="robotiq_2f_gripper_control" type="Robotiq2FGripperRtuNode.py" args="$(arg comport)">
+      <!-- The action server for Robotiq requires input/output to be at /input and /output -->
+      <remap from="Robotiq2FGripperRobotInput" to="input"/>
+      <remap from="Robotiq2FGripperRobotOutput" to="output"/>
+    </node>
+
+    <!-- publish the joint states of robotiq gripper -->
+    <!-- <node name="robotiq_joint_state_publisher" pkg="robot_control" type="read_robotiq_joint_state.py" /> -->
+
+
+    <!-- <node name="robotiq_2f_gripper_action_server" pkg="robotiq_2f_gripper_action_server"
+          type="robotiq_2f_gripper_action_server_node">
+      <param name="gripper_name" type="str" value="$(arg gripper_name)" />
+      <param name="min_gap" type="double" value="$(arg min_gap)" />
+      <param name="max_gap" type="double" value="$(arg max_gap)" />
+      <param name="min_effort" type="double" value="$(arg min_effort)" />
+      <param name="max_effort" type="double" value="$(arg max_effort)" />
+    </node> -->
+
+  <node name="create_tacniq_queue" pkg="robot_control" type="create_tacniq_queue.py" output="screen" ></node>
+    <node name="slip_ratio_pid_helper_tacniq" pkg="pid" type="slip_ratio_pid_helper_tacniq.py" output="screen" ></node>
+    <node name="tacniq" pkg="tacniq_ros" type="tacniq.py" output="screen" ></node>
+    <node name="tacniq_visualize" pkg="tacniq_ros" type="visualize.py" output="screen" ></node>
+
+<!--     <node name="servo_sim_node" pkg="pid" type="plant_sim" output="screen" >
+      <param name="plant_order" value="2" />
+    </node>
+ -->
+<!--     <node name="setpoint_node" pkg="pid" type="setpoint_node" output="screen" />
+ -->
+    <!-- rqt_plot is a resource hog, so if you're seeing high CPU usage, don't launch rqt_plot  -->
+<!--     <node name="rqt_plot" pkg="rqt_plot" type="rqt_plot"
+    args="/control_effort/data /state/data /setpoint/data" /> -->
+
+<!--     <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure" />
+ -->
+    <!-- <node name="rqt_robot_monitor" pkg="rqt_robot_monitor" type="rqt_robot_monitor" /> -->
+</launch>

@@ -14,20 +14,27 @@ tac_map_width = 6
 
 left_image = np.ones([tac_map_height, tac_map_width])*max_adc_value
 right_image = np.ones([tac_map_height, tac_map_width])*max_adc_value
-left_queue = deque(maxlen=1000)
-right_queue = deque(maxlen=1000)
+image_all = np.ones([66])*max_adc_value
+# left_queue = deque(maxlen=1000)
+# right_queue = deque(maxlen=1000)
+taxel_queue = [deque(maxlen=1000)]*66
 
 def read_left_tacniq(msg):
-    global left_image
+    global left_image, image_all, taxel_queue
     left_image = read_tacniq_data(msg)
-    left_queue.append(np.mean(left_image))
+    # left_queue.append(np.mean(left_image))
     # print(np.sum(left_image))
-    
 
+    image_all = (left_image[:, ::-1] + right_image) / 2
+    image_all = image_all.reshape(-1)
+
+    for i in range(66):
+        taxel_queue[i].append(image_all[i])
+    
 def read_right_tacniq(msg):
     global right_image
     right_image = read_tacniq_data(msg)
-    right_queue.append(np.mean(right_image))
+    # right_queue.append(np.mean(right_image))
 
 def read_tacniq_data(msg):
     data_flattened = np.array(msg.data)
@@ -54,7 +61,7 @@ im1 = ax[1].imshow(right_image, vmin=0, vmax=max_adc_value, cmap=cmap)
 # line2, = ax_plt.plot(np.array(right_queue))
 # lines = [line1, line2]
 lines = []
-for index in range(2):
+for index in range(66):
     lobj = ax_plt.plot([],[],lw=2)[0]
     lines.append(lobj)
 
@@ -144,13 +151,16 @@ def animate_plt(frame):
     x1 = np.arange(1000)
     y1 = np.random.randn(1000)
     global line1, line2, left_queue, right_queue
-    if len(left_queue) * len(right_queue) > 0:
-        lines[0].set_data(np.arange(len(left_queue)), np.array(left_queue).astype(np.float16))
-        # lines[0].set_data(x1, y1)
-        lines[1].set_data(np.arange(len(right_queue)), np.array(right_queue).astype(np.float16))
+    if 1: #len(left_queue) * len(right_queue) > 0:
+        # # plot mean value
+        # lines[0].set_data(np.arange(len(left_queue)), np.array(left_queue).astype(np.float16))
+        # lines[1].set_data(np.arange(len(right_queue)), np.array(right_queue).astype(np.float16))
+
+        for i in range(66):
+            lines[i].set_data(np.arange(len(taxel_queue[i])), np.array(taxel_queue[i]).astype(np.int16))
         # print(np.array(left_queue)[-1])
         # print(np.array(left_queue))
-        print(len(left_queue), np.array(left_queue).shape)
+        # print(len(left_queue), np.array(left_queue).shape)
     return lines
 
 if __name__ == '__main__':

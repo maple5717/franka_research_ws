@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import rospy
-from std_msgs.msg import Float64, Bool, String, Int16MultiArray, MultiArrayDimension
+from std_msgs.msg import Float64, Bool, String, Int16MultiArray, Float32MultiArray, Int8MultiArray, MultiArrayDimension
 from robotiq_2f_gripper_control.msg import _Robotiq2FGripper_robot_output as outputMsg
 from robotiq_2f_gripper_control.msg import _Robotiq2FGripper_robot_input  as inputMsg
 import numpy as np
@@ -8,7 +8,11 @@ import threading
 import ctypes
 import inspect
 from multiprocessing import Process, Event
+from pid_helper_tacniq import PID_HELPER
 # from math import abs
+
+CONTACT_MODE = 0
+SLIP_MODE = 1
 
 max_adc_value = 3500  # max adc value depends on FPGA
 tac_map_height = 11
@@ -50,27 +54,43 @@ def async_raise(tid, exctype):
 def stop_thread(thread):
    async_raise(thread.ident, SystemExit)
 
-class PID_HELPER():
-    def __init__(self, goal=0.024*3*0 + 0.075):
-        #+0.035 # 80 - 60 # in terms of desired pressure 230, 80
+class SLIP_PID_HELPER():
+    def __init__(self, 
+                 input_topic=rospy.get_param("~input", "input"), 
+                 output_topic=rospy.get_param("~output", "output"),
+                 goal=0.024*3*0 + 0.075, 
+                 ):
+
+        # tunable parameters
         self.TOLERANCE = 10
         self.TOLERANCE_QTY = 10
-        self.TACNIQ_SCALE = 1000
-        self.ROBOTIQ_SCALE = 4
+        self.TACNIQ_SCALE = 0.1
+        self.ROBOTIQ_SCALE = 1
+        self.abs_tol = 3
+        self.std_tol = 0.25*0
 
-        self.input_topic = rospy.get_param("~input", "input")
-        self.output_topic = rospy.get_param("~output", "output")
+        # define PID related parameters
+        self.input_topic = input_topic
+        self.output_topic = output_topic
         self.GOAL = rospy.get_param("~goal", goal)
         self.state=0
         self.current_pos=0
         self.error = 1
         self.pid_enable = False
+
+        # initialize the parameters
+        self.contact_region_mask = np.zeros([tac_map_height, tac_map_width])
+        self.slip_region = np.zeros([tac_map_height, tac_map_width])
         
-        # rospy.init_node('pid_helper')
+        # define publishers
         self.pub = rospy.Publisher('state', Float64, queue_size=100)
         self.pub_goal = rospy.Publisher('setpoint', Float64, queue_size=100)
         self.pub_plant = rospy.Publisher(self.output_topic, outputMsg.Robotiq2FGripper_robot_output, queue_size=100)
         self.pub_pid_start = rospy.Publisher('pid_enable', Bool, queue_size=100)
+
+        # define subsribers
+        
+
         rospy.Subscriber(self.input_topic, inputMsg.Robotiq2FGripper_robot_input, self.getStatus)
 
         # command to be sent
@@ -118,68 +138,67 @@ class PID_HELPER():
         # self.pub_goal.publish(Float64(data=self.GOAL))
         # print('Goal set')
 
-
-    # def updateState(self,data):
-    #     self.state = data.bt_data[0].pdc_data
-
-    #     if (abs(self.state - self.GOinput_topicAL) < self.TOLERANCE) and (self.TOLERANCE_QTY != 0):
-    #         #self.state = self.GOAL
-    #         #self.pub_pid_start.publish(Bool(data=0)) 
-    #         self.TOLERANCE_QTY -= 1
-    #     if self.TOLERANCE_QTY == 0:
-    #         self.pub_pid_start.publish(Bool(data=1))
-
-    #     self.pub.publish(self.state)
-
     def updatePlant(self,data):
         '''receive and send output of the pid controller to gripper'''
         # if not(self.pid_enable):
         #     print(00000)
         #     return 
-        
-        action = self.current_pos + int(data.data*self.ROBOTIQ_SCALE) 
-        # print('Input to the plant:', data.data)
+        # print(data.data)
+        print("PID:", data.data)
+        # action = self.current_pos + int(data.data*self.ROBOTIQ_SCALE) 
+        # print('Input to the plant:', int(data.data*self.ROBOTIQ_SCALE) )
         # print('State: ', self.state)
         # print('Error: ', self.GOAL - self.state)
-        self.error = self.GOAL - self.state
-        # print("goal, state: ", self.GOAL, self.state, self.error)
-        action = max(0, action)
-        action = min(210, action)
-        self.command.rPR = action
-        # print('Pos + Action: ', self.current_pos, int(data.data*self.TACNIQ_SCALE), data.data)
-        # print('control effort: ', action)
-        # # print(self.current_pos, data.data, self.command.rPR)
-        self.pub_plant.publish(self.command)
+        # self.error = self.GOAL - self.state
+        # # print("goal, state: ", self.GOAL, self.state, self.error)
+        # action = max(0, action)
+        # action = min(210, action)
+        # self.command.rPR = action
+        # # print('Pos + Action: ', self.current_pos, int(data.data*self.TACNIQ_SCALE), data.data)
+        # # print('control effort: ', action)
+        # # # print(self.current_pos, data.data, self.command.rPR)
+        # self.pub_plant.publish(self.command)
 
-    def read_left_tacniq(self, msg):
-        global left_image, both_updated, left_updated, right_updated
-        left_image = read_tacniq_data(msg)
-        self.publish_tacniq_state()
-        left_updated = True
-        # print(left_updated, right_updated)
+    def get_contact_mask(self, msg):
+        self.contact_region_mask = np.array(msg.data).reshape(tac_map_height, tac_map_width)
 
+    def get_slip_region(self, msg):
 
-    def read_right_tacniq(self, msg):
-        global right_image, both_updated, left_updated, right_updated
-        right_image = read_tacniq_data(msg)
-        self.publish_tacniq_state()
-        right_updated = True
-        # print(left_updated, right_updated)
+        diff = np.array(msg.data).reshape(tac_map_height, tac_map_width)
+        diff = diff * self.contact_region_mask
 
-    def publish_tacniq_state(self):
-        global left_data, right_data, left_updated, right_updated
-        if left_updated and right_updated:
-            # combine left_data and right_data here and publish the result
-            average_val = np.mean(left_image) + np.mean(right_image)
-            average_force = 1 - average_val/ 2 / max_adc_value - 0.00426
-            self.pub.publish(self.TACNIQ_SCALE * average_force) # publish the combined data 
-            self.state = self.TACNIQ_SCALE * average_force # this is a temporary value (5 * average_force - 0*0.020768)
-            left_updated = False  # reset the flag
-            right_updated = False
-            # print(average_val, average_force)
-            
-            if self.pid_enable:
-                self.pub_pid_start.publish(Bool(data=1))
+        contact_region_num = self.contact_region_mask.sum()
+        diff_mean = 0
+        diff_std = 0
+        if contact_region_num > 0:
+            diff_mean = diff.sum() / self.contact_region_mask.sum()
+            diff_std = diff[self.contact_region_mask > 0].std()
+        # print("mask", contact_region_num)
+        # print("aaa", diff[contact_region_mask > 0].mean())
+        # print("bbb", diff_mean)
+        # print("std", diff_std)
+        abs_mask = abs(diff) > self.abs_tol 
+        std_mask = abs(diff - diff_mean) > self.std_tol * diff_std
+
+        self.slip_region = (diff * abs_mask * std_mask)
+
+        self.publish_slip_state()
+
+    def publish_slip_state(self): 
+        # combine left_data and right_data here and publish the result
+        dist = 0
+        taxel_in_contact = self.slip_region[self.contact_region_mask > 0]
+        if taxel_in_contact.shape[0] > 0: 
+            dist = np.abs(self.slip_region[self.contact_region_mask > 0]).mean()
+        # print(self.TACNIQ_SCALE * dist)
+        
+
+        self.pub.publish(self.TACNIQ_SCALE * dist) # publish the combined data 
+        self.state = self.TACNIQ_SCALE * dist # this is a temporary value (5 * average_force - 0*0.020768)
+        # print(average_val, average_force)
+        
+        if self.pid_enable:
+            self.pub_pid_start.publish(Bool(data=1))
 
     def listener(self): 
         # while self.command.rPR < 210:
@@ -187,9 +206,11 @@ class PID_HELPER():
         print('Goal set')
 
         self.pid_enable = True
-        rospy.Subscriber('tacniq/left', Int16MultiArray, self.read_left_tacniq)
-        rospy.Subscriber('tacniq/right', Int16MultiArray, self.read_right_tacniq)
+        rospy.Subscriber('tacniq/diff_all', Float32MultiArray, self.get_slip_region)
+        rospy.Subscriber('/tacniq/mask_contact_region', Int8MultiArray, self.get_contact_mask)
+
         rospy.Subscriber('control_effort', Float64, self.updatePlant)
+
 
         self.spin_thread = Process(target=thread_job) # threading.Thread(target=thread_job, daemon=True)
         self.spin_thread.start()
@@ -212,8 +233,7 @@ class PID_HELPER():
                     # print(self.spin_thread.is_alive)
                 else:
                     hold_flag = 1
-            else:
-                hold_flag = 0
+            
 
             last_command = self.command.rPR
             # print("hold", hold_flag)
@@ -226,7 +246,18 @@ class PID_HELPER():
 
 if __name__ == '__main__':
     rospy.init_node('pid_helper')
-    my_helper = PID_HELPER()
+    # initial_contact_helper = PID_HELPER()
+    # rospy.sleep(0.1)
+    # initial_contact_helper.listener()
+    print("initial contact established")
+
+    slip_controller_helper = SLIP_PID_HELPER(goal=0.1)
+
     rospy.sleep(0.1)
-    my_helper.listener()
-    print("finished")
+    slip_controller_helper.listener()
+    print("finished grasping")
+
+    # state is the output signal!!!!!!!!
+
+
+    # remember to set the topic name of the C++ pid controller
